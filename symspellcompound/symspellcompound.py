@@ -333,7 +333,7 @@ class SySpellCompound(object):
                                 break
                             suggestions2 = self.lookup(input_string=part2, language=language,
                                                        edit_distance_max=edit_distance_max)
-                            if len(suggestions1) > 0:
+                            if len(suggestions2) > 0:
                                 # if split correction1 == einzelwort correction
                                 if len(suggestions) > 0 and suggestions[0].term == suggestions2[0].term:
                                     break

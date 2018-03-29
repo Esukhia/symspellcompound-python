@@ -11,11 +11,11 @@ print(ssc.lookup_compound(input_string="bonjur bonjour", language="fr", edit_dis
 print(ssc.dictionary.get("frbonjour"))
 print()
 
-# print('Test 2')
-# # this breaks too
-# print(ssc.load_dictionary("lists/bonjour.1.txt", language="fr", term_index=0, count_index=1))
-# print(ssc.lookup_compound(input_string="bonjuor", language="fr", edit_distance_max=2))
-# print()
+print('Test 2')
+# this breaks too
+print(ssc.load_dictionary("lists/bonjour.1.txt", language="fr", term_index=0, count_index=1))
+print(ssc.lookup_compound(input_string="bonjuor", language="fr", edit_distance_max=2))
+print()
 
 print('Test 3')
 # this works file with just "bonjur" or "bonjur hllo", but can't deal with a substitution in "hallo"
