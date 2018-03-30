@@ -1,5 +1,4 @@
 import os
-import timeit
 from symspellcompound.symspellcompound import SySpellCompound
 
 ssc = SySpellCompound()
@@ -12,7 +11,7 @@ print(ssc.dictionary.get("frbonjour"))
 print()
 
 print('Test 2')
-# this breaks too
+# Fixed!
 print(ssc.load_dictionary("lists/bonjour.1.txt", language="fr", term_index=0, count_index=1))
 print(ssc.lookup_compound(input_string="bonjuor", language="fr", edit_distance_max=2))
 print()
@@ -29,3 +28,8 @@ print('Test 4')
 # breaks with "བཀྲ་ཤས་་", breaks with "བཀྲ་ཤིན་", doesn't recognize "བཀྲ་ཤེས་", or "སཀྲ་ཤིས་"
 print(ssc.load_dictionary("lists/tib.txt", language="fr", term_index=0, count_index=1))
 print(ssc.lookup_compound(input_string="སཀྲ་ཤིས་", language="fr", edit_distance_max=2))
+
+print('Test 5')
+# doesn't do much...
+print(ssc.load_dictionary("lists/tib.1.txt", language="fr", term_index=0, count_index=1))
+print(ssc.lookup_compound(input_string="དཀྲ'ཤེས'", language="fr", edit_distance_max=2))
