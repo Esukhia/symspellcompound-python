@@ -16,7 +16,7 @@ class SuggestItem(object):
     def __str__(self):
         return self.term + ":" + str(self.count) + ":" + str(self.distance)
 
-    def getCount():
+    def getCount(self):
         return self.count
 
     def get_hash_code(self):
