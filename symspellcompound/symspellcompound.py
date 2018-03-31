@@ -145,7 +145,7 @@ class SySpellCompound(object):
         for line in SySpellCompound.load_file(path=path):
             for token in line.split():
                 self.create_dictionary_entry(key=token, count=1)
-
+        self.belowThresholdWords = {}
         return True
 
     @staticmethod
