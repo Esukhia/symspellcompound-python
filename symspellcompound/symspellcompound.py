@@ -93,6 +93,8 @@ class SySpellCompound(object):
             belowThresholdWords[key] = count
             return False
         self.words[key] = count
+        if len(key) > self.max_length:
+            self.max_length = len(key)
         edits = self.edits_prefix(key)
         for delete in edits:
             deleteHash = self.get_string_hash(delete)
@@ -187,10 +189,9 @@ class SySpellCompound(object):
     def lookup(self, input_string, verbosity, edit_distance_max):
         if edit_distance_max > self.maxDictionaryEditDistance:
             return []
-        if len(input_string) - edit_distance_max > self.max_length:
-            return []
-
         input_len = len(input_string)
+        if (input_len - edit_distance_max) > self.max_length:
+            return []
 
         suggestions = [] # list of SuggestItems
         hashset1 = set()
@@ -212,19 +213,22 @@ class SySpellCompound(object):
             candidates.append(input_string[:input_prefix_len])
         else:
             candidates.append(input_string)
-
         while candidates_index < len(candidates):
             candidate = candidates[candidates_index]
+            #print(candidate)
             candidates_index+=1
             candidate_len = len(candidate)
             lengthDiff = input_prefix_len - candidate_len
 
-            if lengthDiff > edit_distance_max2 and verbosity < 2:
+            if lengthDiff > edit_distance_max2:
+                if verbosity == 2:
+                    continue
                 break
-
-            if candidate in self.deletes:
-                dict_suggestions = self.deletes[candidate]
+            candidateHash = self.get_string_hash(candidate)
+            if candidateHash in self.deletes:
+                dict_suggestions = self.deletes[candidateHash]
                 for suggestion in dict_suggestions:
+                    #print(suggestion)
                     if suggestion == input_string:
                         continue
                     suggestion_len = len(suggestion)
@@ -235,9 +239,7 @@ class SySpellCompound(object):
                     sugg_prefix_len = min(suggestion_len, self.prefixLength)
                     if sugg_prefix_len > input_prefix_len and (sugg_prefix_len - candidate_len) > edit_distance_max2:
                         continue
-
                     distance = 0
-                    min = 0
                     if candidate_len == 0:
                         distance = min(input_len, suggestion_len)
                         if distance > edit_distance_max2:
@@ -256,20 +258,20 @@ class SySpellCompound(object):
                             continue
                         hashset2.add(suggestion)
                     else:
-                        len_min = min(input_len, suggestion_len)
+                        len_min = min(input_len, suggestion_len) - self.prefixLength
                         if ((self.prefixLength - edit_distance_max == candidate_len and
                             len_min > 1 and input_string[input_len+1-len_min:] != suggestion[suggestion_len+1-len_min:]) or
                             (len_min > 0 and input_string[input_len-len_min] != suggestion[suggestion_len-len_min] and
                             (input_string[input_len-len_min-1] != suggestion[suggestion_len-len_min] or input_string[input_len-len_min] != suggestion[suggestion_len-len_min-1]))):
                             continue
                         else:
-                            if verbosity < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len):
-                                if suggestion in hashset2:
-                                    distance = distance_between_words(input_string, suggestion)
-                                    if distance < 0:
-                                        continue
+                            if verbosity < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len) and suggestion in hashset2:
+                                continue
+                            if suggestion not in hashset2:
                                 hashset2.add(suggestion)
-
+                            distance = distance_between_words(input_string, suggestion)
+                            if distance < 0:
+                                continue
                     if distance <= edit_distance_max2:
                         suggestion_count = self.words[suggestion]
                         si = SuggestItem(suggestion, distance, suggestion_count)
