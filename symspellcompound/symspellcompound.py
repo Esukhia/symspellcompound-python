@@ -31,12 +31,16 @@ DISTANCE_MAPPER = {
 
 
 class SySpellCompound(object):
-    def __init__(self, distance="dameraulevenshtein"):
+    def __init__(self, distance="dameraulevenshtein", initialCapacity=16, maxDictionaryEditDistance=2, prefixLength=7, countThreshold=1, compactLevel=5):
 
         if not(distance in DISTANCE_MAPPER or callable(distance)):
             raise DistanceException("Distance must be dameraulevenshtein, typo or a function taking two arguments "
                                     "the two words which needs to be compared")
-
+        self.initialCapacity = initialCapacity
+        self.maxDictionaryEditDistance = maxDictionaryEditDistance
+        self.prefixLength = prefixLength
+        self.countThreshold = countThreshold
+        self.compactLevel = min(compactLevel, 16)
         self.enable_compound_check = True
         # false: assumes input string as single term, no compound splitting / decompounding
         # true:  supports compound splitting / decompounding with three cases:
@@ -74,15 +78,14 @@ class SySpellCompound(object):
         count_threshold = 1
         count_previous = 0
         result = False
-        value = None
-        valueo = self.dictionary.get(language + key, None)  # 117
+        value = self.dictionary.get(key, None)  # 117
         if value is not None:
             if valueo >= 0:  # 122
                 tmp = valueo
                 value = DictionaryItem()
                 value.suggestions.append(tmp)  # value.suggestions.TrimExcess();
                 self.item_list.append(value)
-                self.dictionary[language + key] = -len(self.item_list)
+                self.dictionary[key] = -len(self.item_list)
             else:  # 131
                 value = self.item_list[-valueo - 1]
 
@@ -93,7 +96,7 @@ class SySpellCompound(object):
             value = DictionaryItem()
             value.count = count
             self.item_list.append(value)
-            self.dictionary[language + key] = -len(self.item_list)
+            self.dictionary[key] = -len(self.item_list)
             self.max_length = max(len(key), self.max_length)  # if (key.Length > maxlength) maxlength = key.Length;
 
         if value.count >= count_threshold > count_previous:  # 154
@@ -102,13 +105,13 @@ class SySpellCompound(object):
             result = True
 
             for delete in self.edits(word=key, edit_distance=0, deletes=set()):  # 163
-                value2 = self.dictionary.get(language + delete, None)
+                value2 = self.dictionary.get(delete, None)
                 if value2 is not None:
                     if value2 >= 0:
                         di = DictionaryItem()
                         di.suggestions.append(value2)
                         self.item_list.append(di)
-                        self.dictionary[language + delete] = -len(self.item_list)
+                        self.dictionary[delete] = -len(self.item_list)
                         if keyint not in di.suggestions:  # 177
                             _ = self.add_lowest_distance(item=di, suggestion=key, suggestion_int=keyint, delete=delete)
                     else:
@@ -116,7 +119,11 @@ class SySpellCompound(object):
                         if keyint not in di.suggestions:  # 182
                             _ = self.add_lowest_distance(item=di, suggestion=key, suggestion_int=keyint, delete=delete)
                 else:
-                    self.dictionary[language + delete] = keyint
+                    self.dictionary[delete] = keyint
+        print("dictionary:")
+        print(self.dictionary)
+        print("word_list:")
+        print(self.word_list)
         return result
 
     def load_dictionary(self, corpus, language, term_index, count_index):
@@ -189,7 +196,7 @@ class SySpellCompound(object):
                 0].distance:
                 break  # 302
 
-            valueo = self.dictionary.get(language + candidate, None)
+            valueo = self.dictionary.get(candidate, None)
             if valueo is not None:  # 305
                 value = DictionaryItem()
                 if valueo >= 0:  # 308
@@ -242,7 +249,7 @@ class SySpellCompound(object):
                                     distance = distance_between_words(suggestion, input_string)
                         if self.verbose < 2 and len(suggestions) > 0 and distance > suggestions[0].distance: continue
                         if distance <= edit_distance_max:
-                            value2 = self.dictionary.get(language + suggestion, None)
+                            value2 = self.dictionary.get(suggestion, None)
                             if value2 is not None:
                                 si = SuggestItem()
                                 si.term = suggestion
