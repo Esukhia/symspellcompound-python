@@ -125,7 +125,7 @@ class SySpellCompound(object):
         self.belowThresholdWords = {}
         return True
 
-    def delete_in_suggestion_prefix(delete, suggestion, suggestion_len):
+    def delete_in_suggestion_prefix(self, delete, delete_len, suggestion, suggestion_len):
         if delete_len == 0:
             return True
         if self.prefixLength < suggestion_len:
@@ -215,7 +215,6 @@ class SySpellCompound(object):
             candidates.append(input_string)
         while candidates_index < len(candidates):
             candidate = candidates[candidates_index]
-            #print(candidate)
             candidates_index+=1
             candidate_len = len(candidate)
             lengthDiff = input_prefix_len - candidate_len
@@ -228,7 +227,6 @@ class SySpellCompound(object):
             if candidateHash in self.deletes:
                 dict_suggestions = self.deletes[candidateHash]
                 for suggestion in dict_suggestions:
-                    #print(suggestion)
                     if suggestion == input_string:
                         continue
                     suggestion_len = len(suggestion)
@@ -265,7 +263,7 @@ class SySpellCompound(object):
                             (input_string[input_len-len_min-1] != suggestion[suggestion_len-len_min] or input_string[input_len-len_min] != suggestion[suggestion_len-len_min-1]))):
                             continue
                         else:
-                            if verbosity < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len) and suggestion in hashset2:
+                            if verbosity < 2 and not self.delete_in_suggestion_prefix(candidate, candidate_len, suggestion, suggestion_len) or suggestion in hashset2:
                                 continue
                             if suggestion not in hashset2:
                                 hashset2.add(suggestion)
@@ -287,7 +285,7 @@ class SySpellCompound(object):
                                 continue
                         if verbosity < 2:
                             edit_distance_max2 = distance
-                            suggestions.append(si)
+                        suggestions.append(si)
 
             if lengthDiff < edit_distance_max and candidate_len <= self.prefixLength:
                 if verbosity < 2 and lengthDiff > edit_distance_max2:
