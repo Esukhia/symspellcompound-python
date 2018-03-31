@@ -4,8 +4,7 @@
 import os
 from copy import copy
 import math
-from pyxdameraulevenshtein import damerau_levenshtein_distance, normalized_damerau_levenshtein_distance, \
-    damerau_levenshtein_distance_ndarray, normalized_damerau_levenshtein_distance_ndarray
+from pyxdameraulevenshtein import damerau_levenshtein_distance
 import time
 
 from symspellcompound.errors import DistanceException
@@ -32,7 +31,6 @@ DISTANCE_MAPPER = {
 
 class SySpellCompound(object):
     def __init__(self, distance="dameraulevenshtein", initialCapacity=16, maxDictionaryEditDistance=2, prefixLength=7, countThreshold=1, compactLevel=5):
-
         if not(distance in DISTANCE_MAPPER or callable(distance)):
             raise DistanceException("Distance must be dameraulevenshtein, typo or a function taking two arguments "
                                     "the two words which needs to be compared")
@@ -62,10 +60,7 @@ class SySpellCompound(object):
         self.deletes = {}
         self.words = {}
         self.belowThresholdWords = {}
-        self.word_list = []
-        self.item_list = []
         self.max_length = 0
-
         # self.bigram = {} TODO: Remove it
 
     @staticmethod
@@ -105,10 +100,10 @@ class SySpellCompound(object):
                 self.deletes[deleteHash].append(key)
             else:
                 self.deletes[deleteHash] = [key]
-        print("dictionary:")
-        print(self.dictionary)
-        print("word_list:")
-        print(self.word_list)
+        # print("deletes:")
+        # print(self.deletes)
+        # print("words:")
+        # print(self.words)
         return True
 
     def get_string_hash(self, s):
@@ -125,7 +120,7 @@ class SySpellCompound(object):
                 count = to_int(tokens[count_index])
                 if count:
                     self.create_dictionary_entry(key=key, language=language, count=count)
-
+        self.belowThresholdWords = {}
         return True
 
     def delete_in_suggestion_prefix(delete, suggestion, suggestion_len):
@@ -189,7 +184,7 @@ class SySpellCompound(object):
                         self.edits(delete, edit_distance, deletes)
         return deletes
 
-    def lookup(self, input_string, language, edit_distance_max):
+    def lookup(self, input_string, language, verbosity, edit_distance_max):
         if edit_distance_max > self.maxDictionaryEditDistance:
             return []
         if len(input_string) - edit_distance_max > self.max_length:
@@ -224,7 +219,7 @@ class SySpellCompound(object):
             candidate_len = len(candidate)
             lengthDiff = input_prefix_len - candidate_len
 
-            if lengthDiff > edit_distance_max2 and self.verbose < 2:
+            if lengthDiff > edit_distance_max2 and verbosity < 2:
                 break
 
             if candidate in self.deletes:
@@ -268,7 +263,7 @@ class SySpellCompound(object):
                             (input_string[input_len-len_min-1] != suggestion[suggestion_len-len_min] or input_string[input_len-len_min] != suggestion[suggestion_len-len_min-1]))):
                             continue
                         else:
-                            if self.verbose < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len):
+                            if verbosity < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len):
                                 if suggestion in hashset2:
                                     distance = distance_between_words(input_string, suggestion)
                                     if distance < 0:
@@ -279,21 +274,21 @@ class SySpellCompound(object):
                         suggestion_count = self.words[suggestion]
                         si = SuggestItem(suggestion, distance, suggestion_count)
                         if len(suggestions) > 0:
-                            if self.verbose == 1:
+                            if verbosity == 1:
                                 if distance < edit_distance_max2:
                                     suggestions = []
                                 break
-                            elif self.verbose == 0:
+                            elif verbosity == 0:
                                 if distance < edit_distance_max2 or suggestion_count > suggestions[0].getCount():
                                     edit_distance_max2 = distance
                                     suggestions[0] = si
                                 continue
-                        if self.verbose < 2:
+                        if verbosity < 2:
                             edit_distance_max2 = distance
                             suggestions.append(si)
 
             if lengthDiff < edit_distance_max and candidate_len <= self.prefixLength:
-                if self.verbose < 2 and lengthDiff > edit_distance_max2:
+                if verbosity < 2 and lengthDiff > edit_distance_max2:
                     continue
                 for index in range(0, candidate_len):
                     delete = candidate[:index] + candidate[index + 1:]
@@ -307,7 +302,6 @@ class SySpellCompound(object):
 
     # @time_printer
     def lookup_compound(self, input_string, language, edit_distance_max):
-
         term_list_1 = input_string.split()
         suggestions = []
         suggestion_parts = []
@@ -318,24 +312,18 @@ class SySpellCompound(object):
             suggestions_previous_term = []
             for k in range(0, len(suggestions)):
                 suggestions_previous_term.append(copy(suggestions[k]))
-            suggestions = self.lookup(input_string=term_list_1[i], language=language,
-                                      edit_distance_max=edit_distance_max)
+            suggestions = self.lookup(term_list_1[i], language, 0, edit_distance_max)
             if i > 0 and not last_combi:
-                suggestions_combi = self.lookup(input_string=term_list_1[i - 1] + term_list_1[i],
-                                                language=language,
-                                                edit_distance_max=edit_distance_max)
+                suggestions_combi = self.lookup(term_list_1[i-1] + term_list_1[i], language, 0, edit_distance_max)
                 if len(suggestions_combi) > 0:
                     best1 = suggestion_parts[-1]
-                    best2 = SuggestItem()
+                    best2 = None
                     if len(suggestions) > 0:
                         best2 = suggestions[0]
                     else:
-                        best2.term = term_list_1[i]
-                        best2.distance = edit_distance_max + 1
-                        best2.count = 0
-
-                    if suggestions_combi[0].distance + 1 < distance_between_words(
-                                term_list_1[i - 1] + " " + term_list_1[i], best1.term + " " + best2.term):
+                        best2 = SuggestItem(term_list_1[i], edit_distance_max+1, 0)
+                    distance1 = distance_between_words(term_list_1[i-1]+" "+term_list_1[i], best1.term+" "+best2.term)
+                    if distance1 > 0 and suggestions_combi[0].distance + 1 < distance1:
                         suggestions_combi[0].distance += 1
                         suggestion_parts[-1] = suggestions_combi[0]
                         last_combi = True
@@ -351,26 +339,22 @@ class SySpellCompound(object):
                 if len(term_list_1[i]) > 1:
                     for j in range(1, len(term_list_1[i])):
                         part1 = term_list_1[i][0:j]
-                        part2 = term_list_1[i][j]
+                        part2 = term_list_1[i][j:]
                         suggestion_split = SuggestItem()
-                        suggestions1 = self.lookup(input_string=part1, language=language,
-                                                   edit_distance_max=edit_distance_max)
+                        suggestions1 = self.lookup(part1, language, 0, edit_distance_max)
                         if len(suggestions1) > 0:
                             if len(suggestions) > 0 and suggestions[0].term == suggestions1[0].term:
-                                # if split correction1 == einzelwort correction
                                 break
-                            suggestions2 = self.lookup(input_string=part2, language=language,
-                                                       edit_distance_max=edit_distance_max)
+                            suggestions2 = self.lookup(part2, language, 0, edit_distance_max)
                             if len(suggestions2) > 0:
                                 # if split correction1 == einzelwort correction
                                 if len(suggestions) > 0 and suggestions[0].term == suggestions2[0].term:
                                     break
                                 suggestion_split.term = suggestions1[0].term + " " + suggestions2[0].term
-                                suggestion_split.distance = distance_between_words(term_list_1[i],
-                                                                                   suggestions1[
-                                                                                       0].term + " " +
-                                                                                   suggestions2[
-                                                                                       0].term)
+                                distance2 = distance_between_words(term_list_1[i], suggestions1[0].term+" "+suggestions2[0].term)
+                                if distance2 < 0:
+                                    distance2 = edit_distance_max+1
+                                suggestion_split.distance = distance2
                                 suggestion_split.count = min(suggestions1[0].count, suggestions2[0].count)
                                 suggestions_split.append(suggestion_split)
                                 if suggestion_split.distance == 1:
@@ -381,19 +365,11 @@ class SySpellCompound(object):
                                                             fonction=lambda x: 2 * x.distance - x.count)
                         suggestion_parts.append(suggestions_split[0])
                     else:
-                        si = SuggestItem()
-                        si.term = term_list_1[i]
-                        si.count = 0
-                        si.distance = edit_distance_max + 1
+                        si = SuggestItem(term_list_1[i], edit_distance_max+1, 0)
                         suggestion_parts.append(si)
-
                 else:
-                    si = SuggestItem()
-                    si.term = term_list_1[i]
-                    si.count = 0
-                    si.distance = edit_distance_max + 1
+                    si = SuggestItem(term_list_1[i], edit_distance_max+1, 0)
                     suggestion_parts.append(si)
-
         suggestion = SuggestItem()
         suggestion.count = math.inf
         s = ""
@@ -402,9 +378,6 @@ class SySpellCompound(object):
             suggestion.count = min(si.count, suggestion.count)
         suggestion.term = s.strip()
         suggestion.distance = distance_between_words(suggestion.term, input_string)
-
-        # suggestions_line = [suggestion]
-        # return suggestions_line
         return suggestion
 
 

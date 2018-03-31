@@ -1,5 +1,14 @@
-def sort_suggestion(list_suggest, fonction):
-    return list(sorted(list_suggest, key=fonction, reverse=False))
+import functools
+
+def compare_si(si1, si2):
+    if si1.distance != si2.distance:
+        return si1.distance - si2.distance
+    return si1.count - si1.count
+
+compare_si_key = functools.cmp_to_key(compare_si)
+
+def sort_suggestion(list_suggest, fonction=compare_si_key):
+    return list(sorted(list_suggest, key=compare_si_key, reverse=False))
 
 
 def to_int(s):
