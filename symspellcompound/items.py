@@ -2,10 +2,10 @@ from copy import copy
 
 
 class SuggestItem(object):
-    def __init__(self):
-        self.term = ""
-        self.distance = 0
-        self.count = 0
+    def __init__(self, term="", distance = 0, count = 0):
+        self.term = term
+        self.distance = distance
+        self.count = count
 
     def __eq__(self, other):
         """Overrides the default implementation"""
@@ -15,6 +15,9 @@ class SuggestItem(object):
 
     def __str__(self):
         return self.term + ":" + str(self.count) + ":" + str(self.distance)
+
+    def getCount():
+        return self.count
 
     def get_hash_code(self):
         return hash(self.term)

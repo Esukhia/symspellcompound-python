@@ -59,6 +59,9 @@ class SySpellCompound(object):
         # //A Dictionary with fixed value type (int) requires less memory than a Dictionary with variable value type (object)
         # //To support two types with a Dictionary with fixed type (int), positive number point to one list of type 1 (string), and negative numbers point to a secondary list of type 2 (dictionaryEntry)
         self.dictionary = {}  # Initialize
+        self.deletes = {}
+        self.words = {}
+        self.belowThresholdWords = {}
         self.word_list = []
         self.item_list = []
         self.max_length = 0
@@ -75,56 +78,41 @@ class SySpellCompound(object):
         # @time_printer
 
     def create_dictionary_entry(self, key, language, count):
-        count_threshold = 1
-        count_previous = 0
-        result = False
-        value = self.dictionary.get(key, None)  # 117
-        if value is not None:
-            if valueo >= 0:  # 122
-                tmp = valueo
-                value = DictionaryItem()
-                value.suggestions.append(tmp)  # value.suggestions.TrimExcess();
-                self.item_list.append(value)
-                self.dictionary[key] = -len(self.item_list)
-            else:  # 131
-                value = self.item_list[-valueo - 1]
-
-            count_previous = value.count
-            value.count += count
-        else:  # 140
-            # New word
-            value = DictionaryItem()
-            value.count = count
-            self.item_list.append(value)
-            self.dictionary[key] = -len(self.item_list)
-            self.max_length = max(len(key), self.max_length)  # if (key.Length > maxlength) maxlength = key.Length;
-
-        if value.count >= count_threshold > count_previous:  # 154
-            self.word_list.append(key)
-            keyint = len(self.word_list) - 1
-            result = True
-
-            for delete in self.edits(word=key, edit_distance=0, deletes=set()):  # 163
-                value2 = self.dictionary.get(delete, None)
-                if value2 is not None:
-                    if value2 >= 0:
-                        di = DictionaryItem()
-                        di.suggestions.append(value2)
-                        self.item_list.append(di)
-                        self.dictionary[delete] = -len(self.item_list)
-                        if keyint not in di.suggestions:  # 177
-                            _ = self.add_lowest_distance(item=di, suggestion=key, suggestion_int=keyint, delete=delete)
-                    else:
-                        di = self.item_list[-value2 - 1]
-                        if keyint not in di.suggestions:  # 182
-                            _ = self.add_lowest_distance(item=di, suggestion=key, suggestion_int=keyint, delete=delete)
-                else:
-                    self.dictionary[delete] = keyint
+        if (count <= 0):
+            if self.countThreshold > 0:
+                return False
+            count = 0
+        count_previous = -1
+        if self.countThreshold > 1 and key in self.belowThresholdWords:
+            count = (sys.maxsize - count_previous > count) and count_previous+count or sys.maxsize
+            if count >= countThreshold:
+                self.belowThresholdWords.pop(key)
+            else:
+                self.belowThresholdWords[key] = count
+                return False
+        elif key in self.words:
+            count = (sys.maxsize - count_previous > count) and count_previous+count or sys.maxsize
+            self.words[key] = count
+            return False
+        elif count < self.countThreshold:
+            belowThresholdWords[key] = count
+            return False
+        self.words[key] = count
+        edits = self.edits_prefix(key)
+        for delete in edits:
+            deleteHash = self.get_string_hash(delete)
+            if deleteHash in self.deletes:
+                self.deletes[deleteHash].append(key)
+            else:
+                self.deletes[deleteHash] = [key]
         print("dictionary:")
         print(self.dictionary)
         print("word_list:")
         print(self.word_list)
-        return result
+        return True
+
+    def get_string_hash(self, s):
+        return hash(s)
 
     def load_dictionary(self, corpus, language, term_index, count_index):
         # path = os.path.join(__file__, corpus)
@@ -138,6 +126,19 @@ class SySpellCompound(object):
                 if count:
                     self.create_dictionary_entry(key=key, language=language, count=count)
 
+        return True
+
+    def delete_in_suggestion_prefix(delete, suggestion, suggestion_len):
+        if delete_len == 0:
+            return True
+        if self.prefixLength < suggestion_len:
+            suggestion_len = self.prefixLength
+        j = 0
+        for c in delete:
+            while j < suggestion_len and c != suggestion[j]:
+                j += 1
+            if j == suggestion_len:
+                return False
         return True
 
     def create_dictionary(self, corpus, language):
@@ -166,123 +167,143 @@ class SySpellCompound(object):
             item.suggestions.append(suggestion_int)
         return item
 
+    def edits_prefix(self, key):
+        hashSet = []
+        keylen = len(key)
+        if keylen <= self.maxDictionaryEditDistance:
+            hashSet.append("")
+        if keylen > self.prefixLength:
+            key = key[:self.prefixLength]
+        hashSet.append(key)
+        return self.edits(key, 0, hashSet)
+
     def edits(self, word, edit_distance, deletes):
         edit_distance += 1
-        if len(word) > 1:
-            for index in range(0, len(word)):
+        wordlen = len(word)
+        if wordlen > 1:
+            for index in range(0, wordlen):
                 delete = word[:index] + word[index + 1:]
                 if delete not in deletes:
-                    deletes.add(delete)
-                    if edit_distance < self.edit_distance_max:
-                        self.edits(word=delete, edit_distance=edit_distance, deletes=deletes)
+                    deletes.append(delete)
+                    if edit_distance < self.maxDictionaryEditDistance:
+                        self.edits(delete, edit_distance, deletes)
         return deletes
 
     def lookup(self, input_string, language, edit_distance_max):
+        if edit_distance_max > self.maxDictionaryEditDistance:
+            return []
         if len(input_string) - edit_distance_max > self.max_length:
             return []
 
-        candidates = []
+        input_len = len(input_string)
+
+        suggestions = [] # list of SuggestItems
         hashset1 = set()
-        suggestions = []
         hashset2 = set()
 
-        candidates.append(input_string)
+        if input_string in self.words:
+            suggestions.append(SuggestItem(input_string, 0, self.words[input_string]))
 
-        while len(candidates) > 0:
-            candidate = candidates[0]
-            candidates.pop(0)
+        hashset2.add(input_string)
 
-            if self.verbose < 2 and len(suggestions) > 0 and len(input_string) - len(candidate) > suggestions[
-                0].distance:
-                break  # 302
+        edit_distance_max2 = edit_distance_max
+        candidates_index = 0
+        singleSuggestion = [""]
+        candidates = [] # list of strings
 
-            valueo = self.dictionary.get(candidate, None)
-            if valueo is not None:  # 305
-                value = DictionaryItem()
-                if valueo >= 0:  # 308
-                    value.suggestions.append(int(valueo))
-                else:
-                    value = self.item_list[-valueo - 1]
+        input_prefix_len = input_len
+        if input_prefix_len > self.prefixLength:
+            input_prefix_len = self.prefixLength
+            candidates.append(input_string[:input_prefix_len])
+        else:
+            candidates.append(input_string)
 
-                if value.count > 0 and candidate not in hashset2:  # 311
-                    hashset2.add(candidate)
-                    distance = len(input_string) - len(candidate)
-                    if self.verbose == 2 or len(suggestions) == 0 or distance <= suggestions[0].distance:
-                        if self.verbose < 2 and len(suggestions) > 0 and suggestions[0].distance > distance:
-                            suggestions = []
-                        si = SuggestItem()
-                        si.term = candidate
-                        si.count = value.count
-                        si.distance = distance
-                        suggestions.append(si)
-                        # Early stopping
-                        if self.verbose < 2 and (len(input_string) - len(candidate)) == 0:
-                            break
-                            #  333
-                for suggestion_int in value.suggestions:
-                    suggestion = self.word_list[suggestion_int]
-                    if suggestion not in hashset2:
-                        hashset2.add(suggestion)
-                        distance = 0
-                        if suggestion != input_string:
+        while candidates_index < len(candidates):
+            candidate = candidates[candidates_index]
+            candidates_index+=1
+            candidate_len = len(candidate)
+            lengthDiff = input_prefix_len - candidate_len
 
-                            # Reviewed until heres
-                            if len(suggestion) == len(candidate):
-                                distance = len(input_string) - len(candidate)
-                            elif len(input_string) == len(candidate):
-                                distance = len(suggestion) - len(candidate)
-                            else:
-                                ii = 0
-                                jj = 0
-                                while ii < len(suggestion) and \
-                                        ii < len(input_string) and \
-                                        suggestion[ii] == input_string[ii]: ii += 1
-                                while jj < len(suggestion) - ii and \
-                                        jj < len(input_string) - ii and \
-                                        suggestion[- jj - 1] == input_string[- jj - 1]: jj += 1
+            if lengthDiff > edit_distance_max2 and self.verbose < 2:
+                break
 
-                                if ii > 0 or jj > 0:
-                                    distance = distance_between_words(
-                                        suggestion[ii:- ii - jj],
-                                        input_string[ii: - ii - jj])
-                                else:
-                                    distance = distance_between_words(suggestion, input_string)
-                        if self.verbose < 2 and len(suggestions) > 0 and distance > suggestions[0].distance: continue
-                        if distance <= edit_distance_max:
-                            value2 = self.dictionary.get(suggestion, None)
-                            if value2 is not None:
-                                si = SuggestItem()
-                                si.term = suggestion
-                                si.count = self.item_list[-value2 - 1].count
-                                si.distance = distance
-
-                                if self.verbose < 2 and len(suggestions) and suggestions[0].distance > distance:
-                                    suggestions = []
-                                suggestions.append(si)
-
-                if len(input_string) - len(candidate) < edit_distance_max:
-                    if self.verbose < 2 and \
-                            len(suggestions) > 0 and \
-                                len(input_string) - len(candidate) >= suggestions[0].distance:
+            if candidate in self.deletes:
+                dict_suggestions = self.deletes[candidate]
+                for suggestion in dict_suggestions:
+                    if suggestion == input_string:
+                        continue
+                    suggestion_len = len(suggestion)
+                    if (abs(suggestion_len - input_len) > edit_distance_max2 or
+                        suggestion_len < candidate_len or
+                        (suggestion_len == candidate_len and suggestion != candidate)):
+                        continue
+                    sugg_prefix_len = min(suggestion_len, self.prefixLength)
+                    if sugg_prefix_len > input_prefix_len and (sugg_prefix_len - candidate_len) > edit_distance_max2:
                         continue
 
-                    for index in range(0, len(candidate)):
-                        delete = candidate[:index] + candidate[index + 1:]
-                        if delete not in hashset1:
-                            hashset1.add(delete)
-                            candidates.append(delete)
+                    distance = 0
+                    min = 0
+                    if candidate_len == 0:
+                        distance = min(input_len, suggestion_len)
+                        if distance > edit_distance_max2:
+                            continue
+                        if suggestion in hashset2:
+                            continue
+                        hashset2.add(suggestion)
+                    elif suggestion_len == 1:
+                        if input_string.find(suggestion[0] < 0):
+                            distance = input_len
+                        else:
+                            distance = input_len -1
+                        if distance > edit_distance_max2:
+                            continue
+                        if suggestion in hashset2:
+                            continue
+                        hashset2.add(suggestion)
+                    else:
+                        len_min = min(input_len, suggestion_len)
+                        if ((self.prefixLength - edit_distance_max == candidate_len and
+                            len_min > 1 and input_string[input_len+1-len_min:] != suggestion[suggestion_len+1-len_min:]) or
+                            (len_min > 0 and input_string[input_len-len_min] != suggestion[suggestion_len-len_min] and
+                            (input_string[input_len-len_min-1] != suggestion[suggestion_len-len_min] or input_string[input_len-len_min] != suggestion[suggestion_len-len_min-1]))):
+                            continue
+                        else:
+                            if self.verbose < 2 and not delete_in_suggestion_prefix(candidate, suggestion, suggestion_len):
+                                if suggestion in hashset2:
+                                    distance = distance_between_words(input_string, suggestion)
+                                    if distance < 0:
+                                        continue
+                                hashset2.add(suggestion)
 
-        if self.verbose < 2:
-            # sorted(suggestions, key=lambda x: x.count, reverse=True)
-            suggestions = sort_suggestion(suggestions, fonction=lambda x: x.count)
-        else:
-            suggestions = sort_suggestion(suggestions, fonction=lambda x: 2 * x.distance - x.count)
-            # sorted(suggestions, key=lambda x: 2 * x.distance - x.count, reverse=True)
+                    if distance <= edit_distance_max2:
+                        suggestion_count = self.words[suggestion]
+                        si = SuggestItem(suggestion, distance, suggestion_count)
+                        if len(suggestions) > 0:
+                            if self.verbose == 1:
+                                if distance < edit_distance_max2:
+                                    suggestions = []
+                                break
+                            elif self.verbose == 0:
+                                if distance < edit_distance_max2 or suggestion_count > suggestions[0].getCount():
+                                    edit_distance_max2 = distance
+                                    suggestions[0] = si
+                                continue
+                        if self.verbose < 2:
+                            edit_distance_max2 = distance
+                            suggestions.append(si)
 
-        if self.verbose == 0 and len(suggestions) > 1:
-            return suggestions[0:1]
-        else:
-            return suggestions
+            if lengthDiff < edit_distance_max and candidate_len <= self.prefixLength:
+                if self.verbose < 2 and lengthDiff > edit_distance_max2:
+                    continue
+                for index in range(0, candidate_len):
+                    delete = candidate[:index] + candidate[index + 1:]
+                    if delete not in hashset1:
+                        candidates.append(delete)
+                    else:
+                        hashset1.add(delete)
+        if len(suggestions) > 1:
+            suggestions = sort_suggestion(suggestions)
+        return suggestions
 
     # @time_printer
     def lookup_compound(self, input_string, language, edit_distance_max):
