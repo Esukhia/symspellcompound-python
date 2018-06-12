@@ -11,6 +11,7 @@ from .tools import text_to_word_sequence, to_int, sort_suggestion
 from .typo_distance import typo_distance
 from .items import SuggestItem, DictionaryItem
 
+import platform
 if platform.system() != "Windows":
     from pyxdameraulevenshtein import damerau_levenshtein_distance
 else:
