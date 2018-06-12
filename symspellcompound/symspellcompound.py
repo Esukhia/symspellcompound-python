@@ -4,7 +4,6 @@
 import os
 from copy import copy
 import math
-from pyxdameraulevenshtein import damerau_levenshtein_distance
 import time
 
 from symspellcompound.errors import DistanceException
@@ -12,6 +11,11 @@ from .tools import text_to_word_sequence, to_int, sort_suggestion
 from .typo_distance import typo_distance
 from .items import SuggestItem, DictionaryItem
 
+if platform.system() != "Windows":
+    from pyxdameraulevenshtein import damerau_levenshtein_distance
+else:
+    from jellyfish import levenshtein_distance
+    
 
 def time_printer(func):
     def func_wrapper(*args, **kwargs):
@@ -23,10 +27,16 @@ def time_printer(func):
     return func_wrapper
 
 
-DISTANCE_MAPPER = {
-    "dameraulevenshtein": damerau_levenshtein_distance,
-    "typo": typo_distance
-}
+if platform.system() != "Windows":
+    DISTANCE_MAPPER = {
+        "dameraulevenshtein": damerau_levenshtein_distance,
+        "typo": typo_distance
+    }
+else:
+    DISTANCE_MAPPER = {
+        "dameraulevenshtein": levenshtein_distance,
+        "typo": typo_distance
+    }
 
 
 class SySpellCompound(object):
@@ -382,7 +392,11 @@ class SySpellCompound(object):
 
 
 def distance_between_words(word1, word2):
-    return damerau_levenshtein_distance(word1, word2)
+    if platform.system() != "Windows":
+        return damerau_levenshtein_distance(word1, word2)
+    else:
+        return levenshtein_distance(word1, word2)
+    
     # return typo_distance(s=word1, t=word2, layout='AZERTY')
 
 
