@@ -11,6 +11,7 @@ from .tools import text_to_word_sequence, to_int, sort_suggestion
 from .typo_distance import typo_distance
 from .items import SuggestItem, DictionaryItem
 
+import hashlib
 import pickle
 import gzip
 
@@ -123,7 +124,7 @@ class SySpellCompound(object):
         return True
 
     def get_string_hash(self, s):
-        return hash(s)
+        return hashlib.md5(s.encode('utf-8')).hexdigest()
     
     def save_pickle(self):
         pickle_data = {"deletes": self.deletes, "words": self.words, "max_length": self.max_length}
@@ -131,6 +132,10 @@ class SySpellCompound(object):
             pickle.dump(pickle_data, f)
 
     def load_pickle(self):
+        if not os.path.isfile("symspell.pickle"):
+            print("\nPickle file doesn't exist!\n")
+            return -1
+
         with gzip.open("symspell.pickle", "rb") as f:
             pickle_data = pickle.load(f)
         self.deletes = pickle_data["deletes"]
