@@ -11,6 +11,9 @@ from .tools import text_to_word_sequence, to_int, sort_suggestion
 from .typo_distance import typo_distance
 from .items import SuggestItem, DictionaryItem
 
+import pickle
+import gzip
+
 import platform
 if platform.system() != "Windows":
     from pyxdameraulevenshtein import damerau_levenshtein_distance
@@ -121,6 +124,18 @@ class SySpellCompound(object):
 
     def get_string_hash(self, s):
         return hash(s)
+    
+    def save_pickle(self):
+        pickle_data = {"deletes": self.deletes, "words": self.words, "max_length": self.max_length}
+        with gzip.open("symspell.pickle", "wb") as f:
+            pickle.dump(pickle_data, f)
+
+    def load_pickle(self):
+        with gzip.open("symspell.pickle", "rb") as f:
+            pickle_data = pickle.load(f)
+        self.deletes = pickle_data["deletes"]
+        self.words = pickle_data["words"]
+        self.max_length = pickle_data["max_length"]
 
     def load_dictionary(self, corpus, term_index, count_index):
         # path = os.path.join(__file__, corpus)
