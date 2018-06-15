@@ -15,7 +15,7 @@ def timeit(method):
 
 ssc = SySpellCompound(maxDictionaryEditDistance=3)
 
-@profile
+#@profile
 @timeit
 def test(n):
     if n == 1:
@@ -51,7 +51,7 @@ def test(n):
         print(ssc.lookup_compound(input_string="དཀྲ'ཤེས'", edit_distance_max=2))
     elif n == 6:
         print("Clusters")
-        print(ssc.load_dictionary("lists/dictionary_bo_107_064.txt", term_index=0, count_index=1))
+        print(ssc.load_dictionary("lists/gmd.txt", term_index=0, count_index=1))
         #ssc.save_pickle()
         #ssc.load_pickle()
         print(ssc.lookup_compound(input_string="དཀྲ་ཤིས་", edit_distance_max=3))

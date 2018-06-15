@@ -125,36 +125,45 @@ class SySpellCompound(object):
 
     def get_string_hash(self, s):
         return hashlib.md5(s.encode('utf-8')).hexdigest()
-    
+
     def save_pickle(self):
+        print("save... pickle")
         pickle_data = {"deletes": self.deletes, "words": self.words, "max_length": self.max_length}
         with gzip.open("symspell.pickle", "wb") as f:
             pickle.dump(pickle_data, f)
+        return True
 
     def load_pickle(self):
         if not os.path.isfile("symspell.pickle"):
             print("\nPickle file doesn't exist!\n")
             return -1
 
+        print("load... pickle")
         with gzip.open("symspell.pickle", "rb") as f:
             pickle_data = pickle.load(f)
         self.deletes = pickle_data["deletes"]
         self.words = pickle_data["words"]
         self.max_length = pickle_data["max_length"]
+        return True
 
     def load_dictionary(self, corpus, term_index, count_index):
-        # path = os.path.join(__file__, corpus)
-        path = corpus
-        if not os.path.isfile(path=path): return False
-        for line in SySpellCompound.load_file(path=path):
-            tokens = text_to_word_sequence(line)
-            if len(tokens) >= 2:
-                key = tokens[term_index]
-                count = to_int(tokens[count_index])
-                if count:
-                    self.create_dictionary_entry(key=key, count=count)
-        self.belowThresholdWords = {}
-        return True
+        if not os.path.isfile("symspell.pickle"):
+            print("load... dictionnary")
+            # path = os.path.join(__file__, corpus)
+            path = corpus
+            if not os.path.isfile(path=path): return False
+            for line in SySpellCompound.load_file(path=path):
+                tokens = text_to_word_sequence(line)
+                if len(tokens) >= 2:
+                    key = tokens[term_index]
+                    count = to_int(tokens[count_index])
+                    if count:
+                        self.create_dictionary_entry(key=key, count=count)
+            self.belowThresholdWords = {}
+            return self.save_pickle()
+        else:
+            return self.load_pickle()
+
 
     def delete_in_suggestion_prefix(self, delete, delete_len, suggestion, suggestion_len):
         if delete_len == 0:
