@@ -131,12 +131,12 @@ class SySpellCompound(object):
         pickle_data = {"deletes": self.deletes, "words": self.words, "max_length": self.max_length}
         with gzip.open("symspell.pickle", "wb") as f:
             pickle.dump(pickle_data, f)
-        return True
+        return True if os.path.isfile("symspell.pickle") else False
 
     def load_pickle(self):
         if not os.path.isfile("symspell.pickle"):
             print("\nPickle file doesn't exist!\n")
-            return -1
+            return False
 
         print("load... pickle")
         with gzip.open("symspell.pickle", "rb") as f:
